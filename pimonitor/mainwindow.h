@@ -12,8 +12,7 @@
 #include <QFile>
 
 #include "fault.h"
-#include "pulsesimple.h"
-#include "generator.h"
+#include "soundoutput.h"
 
 #define TESTMODE    0
 
@@ -31,23 +30,11 @@ public:
 
 signals:
     void processChunk( QString s );
+    void playSound( QString sampleName );
 
 private:
     Ui::MainWindow *ui;
 
-    QTimer *m_pullTimer;
-
-    //QAudioDeviceInfo m_device;
-    //Generator *m_generator;
-    //QAudioOutput *m_audioOutput;
-    //QIODevice *m_output; // not owned
-    QAudioFormat m_format;
-    QMap<QString,Generator*> m_sounds;
-
-    PulseSimple m_pulse;
-
-    bool m_pullMode;
-    QByteArray m_buffer;
     int m_watchMode; // -1 = unset, 0 = off, 1 = perimeter, 2 = armed
     unsigned int m_faultMask; // In perimeter watch, excludes non-perimeter faults
     unsigned int m_previousFault; // Last fault with filter applied
@@ -61,11 +48,11 @@ private:
     QString m_partialLine;
     unsigned long m_logLines; // Lines sent to ui log since last reset
 
+    SoundOutput m_snd;
     QMap<unsigned int,Fault> m_faultMap;
 
     void resetUILog();
 private slots:
-    //void pullTimerExpired();
     void handleReadyRead();
     void handleTestReady();
     void handleTimeout();
@@ -79,7 +66,6 @@ private slots:
     void on_btnArm_clicked();
     void on_btnPerimeter_clicked();
     void on_btnDisarm_clicked();
-    void attemptAudioOpen();
 
     void rebuildFaultMask();
 };

@@ -1,8 +1,6 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 
-#include <QAudioDeviceInfo>
-#include <QAudioOutput>
 #include <QDateTime>
 #include <QString>
 #include <QStringList>
@@ -11,21 +9,12 @@
 #include <QTimer>
 //#include <QVBoxLayout>
 
-const int DurationSeconds = 1;
-const int ToneSampleRateHz = 600;
-const int DataSampleRateHz = 44100;
-const int BufferSize      = 32768;
 
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
     ui(new Ui::MainWindow)
-  ,   m_pullTimer(new QTimer(this))
-  //,   m_device(QAudioDeviceInfo::defaultOutputDevice())
-  //,   m_audioOutput(0)
-  //,   m_output(0)
-  ,   m_buffer(BufferSize, 0)
-  ,   m_pulse()
+  ,   m_snd(this)
   #if (TESTMODE == 0)
   ,   m_serial()
   #endif
@@ -96,145 +85,25 @@ MainWindow::MainWindow(QWidget *parent) :
     m_log.setFileName("monitor.log");
     m_log.open(QIODevice::Append);
 
-    // Initialize
-    //connect(m_pullTimer, SIGNAL(timeout()), SLOT(pullTimerExpired()));
+    connect( this, SIGNAL(playSound(QString)), &m_snd, SLOT(play(QString)) );
 
-    m_pullMode = true;
+    m_snd.start();
 
-    m_format.setSampleRate(DataSampleRateHz);
-    m_format.setChannelCount(2);
-    m_format.setSampleSize(16);
-    m_format.setCodec("audio/pcm");
-    m_format.setByteOrder(QAudioFormat::LittleEndian);
-    m_format.setSampleType(QAudioFormat::SignedInt);
-
-    /****
-    QAudioDeviceInfo info(QAudioDeviceInfo::defaultOutputDevice());
-    if (!info.isFormatSupported(m_format)) {
-        //qWarning() << "Default format not supported - trying to use nearest";
-        logLine( "Default audio format not supported - trying to use nearest" );
-        //m_format = info.nearestFormat(m_format);
-    }
-    ****/
-
-    Generator *g;
-    g = new Generator(this);
-    connect( g, SIGNAL(msg(QString)), this, SLOT(logLine(QString)) );
-    g->generateData(m_format, /*DurationSeconds* */ 1000000/2, ToneSampleRateHz, 1, 1 );
-    m_sounds["beep1s"] = g;
-    g = new Generator( this );
-    connect( g, SIGNAL(msg(QString)), this, SLOT(logLine(QString)) );
-    g->generateData(m_format, 1000000/4, 1280, 1, 1);
-    m_sounds["peep250ms"] = g;
-
-    /****
-    // Create
-    delete m_audioOutput;
-    //m_generator->generateData( m_format, DurationSeconds * 1000000, ToneSampleRateHz );
-    m_audioOutput = 0;
-    m_audioOutput = new QAudioOutput(m_device, m_format, this);
-    //connect(m_audioOutput, SIGNAL(notify()), SLOT(notified()));
-    //connect(m_audioOutput, SIGNAL(stateChanged(QAudio::State)), SLOT(handleStateChanged(QAudio::State)));
-    m_generator->start();
-    m_audioOutput->start(m_generator);
-    //m_volumeSlider->setValue(int(m_audioOutput->volume()*100.0f));
-    ****/
-
-    if (m_pulse.open())
-    {
-        logLine("Opened simple pulse API");
-    }
-    else
-    {
-        logLine("Failed to open simple pulse API, retry in 11s");
-        QTimer::singleShot(11000, this, SLOT(attemptAudioOpen()) );
-    }
     showMaximized();
-}
-
-void MainWindow::attemptAudioOpen()
-{
-    if (m_pulse.open())
-    {
-        logLine("Second attempt to open pulse succeeded");
-    }
-    else
-    {
-        logLine("Giving up on audio");
-    }
 }
 
 MainWindow::~MainWindow()
 {
-    m_pulse.close();
+    m_snd.stop();
     delete ui;
 }
 
-/*****
-void MainWindow::pullTimerExpired()
-{
-    if (m_audioOutput && m_audioOutput->state() != QAudio::StoppedState) {
-        int chunks = m_audioOutput->bytesFree()/m_audioOutput->periodSize();
-        while (chunks) {
-           const qint64 len = m_generator->read(m_buffer.data(), m_audioOutput->periodSize());
-           if (len)
-               m_output->write(m_buffer.data(), len);
-           if (len != m_audioOutput->periodSize())
-               break;
-           --chunks;
-        }
-    }
-}
-****/
-
 void MainWindow::on_btnStartStop_clicked()
 {
-    qint64 bytesRead;
-    static unsigned char buf[0x8000];
     QString whichSound("beep1s");
     static int oddEven = 0;
-    if (oddEven++) whichSound="peep250ms";
-    if (!m_sounds.contains(whichSound)) return;
-    m_sounds[whichSound]->rewind();
-    if ((bytesRead = m_sounds[whichSound]->readData((char *)buf, sizeof(buf))) >= 256)
-    {
-        logLine(QString().sprintf("Got %lld bytes of sound data", bytesRead ));
-        m_pulse.write(buf, bytesRead);
-        m_pulse.flush();
-    }
-    else
-    {
-        logLine("Failed to get sound data from generator");
-    }
-    /******
-    if (m_pullTimer->isActive())
-    {
-        m_pullTimer->stop();
-        ui->btnStartStop->setText("Start");
-    }
-    else
-    {
-        m_pullTimer->start();
-        ui->btnStartStop->setText("Stop");
-    }
-    if (m_audioOutput->state() == QAudio::SuspendedState) {
-        m_audioOutput->resume();
-        logLine("Resuming audio");
-        //m_suspendResumeButton->setText(tr(SUSPEND_LABEL));
-    } else if (m_audioOutput->state() == QAudio::ActiveState) {
-        m_audioOutput->suspend();
-        logLine("Suspending audio");
-        //m_suspendResumeButton->setText(tr(RESUME_LABEL));
-    } else if (m_audioOutput->state() == QAudio::StoppedState) {
-        m_audioOutput->resume();
-        logLine("Starting audio");
-        //m_suspendResumeButton->setText(tr(SUSPEND_LABEL));
-    } else if (m_audioOutput->state() == QAudio::IdleState) {
-        // no-op
-        logLine("Audio idle");
-    }
-    else logLine("Audio in other state");
-    ******/
+    if (oddEven++ % 2) whichSound="peep250ms";
+    emit playSound(whichSound);
 }
 
 void MainWindow::handleReadyRead()
@@ -341,6 +210,7 @@ QString MainWindow::updateFault( unsigned int faultMap )
             s += m_faultMap[mask].m_name;
         }
     }
+    emit playSound("beep1s");
     return s;
 }
 
