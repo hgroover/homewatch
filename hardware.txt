@@ -1,0 +1,82 @@
+Hardware notes and installation
+
+This document describes hardware needed, sources, and tools you'll need, 
+as well as installation notes.
+
+Tools and supplies
+* A decent soldering iron
+* Wire stripper capable of handling AWG22 through AWG28
+* Crimper for 2.54mm pitch pins used on Arduino
+* Crimp kit with housings and male and female pins, 2.54mm pitch.
+  These are often referred to as Dupont connectors, although
+  the connector has been relabeled a few times and the genuine
+  brand is horribly expensive. You'll want to get the Chinese
+  version on E-bay.
+* Screwdriver, wirecutter, needlenose pliers
+* Drill
+* 1.25" #4 wood screws (for mounting Arduino to wooden base)
+* #6 and #8 wood screws in various lengths
+* Drywall anchor mount kit
+
+Hardware components
+
+Connection box
+* Wooden base (to mount Arduino+shield on, along with terminal blocks)
+* Screw-down terminal blocks (this helps in hooking up the rat's nest of
+  sensor wires)
+* Grounding bar (this helps in hooking up the common lead for all the sensor
+  wires)
+* I2C expander (8-port)
+* Arduino Uno
+* SEEEDStudio GPRS shield v2.0
+* Existing logic board and 12V battery with wall power supply (we'll only use
+  this to supply battery-backed 12V DC power to the Arduino)
+
+Front panel
+* Deep wooden picture frame (to hold Raspberry Pi and touchscreen, level shifter
+  board, and speaker)
+* Mounting for picture frame (can be made from 3/8" plywood using table saw
+  and screws)
+* USB power supply capable of 2.1A. In most places it's against electrical code
+  to directly wire any device into household main supply, but you can install
+  an outlet with USB power directly under the mount point for the touchscreen
+* USB-powered speakers. You want speakers that are powered by USB but use a
+  3.5mm stereo jack to connect to the Raspberry Pi.
+* Raspberry Pi model 3.
+* Raspberry Pi touchscreen.
+* Level shifter board. This allows you to run a TTL-level serial connection from
+  the connection box to the front panel over the existing 4-wire cable.
+
+Installation requirements
+
+The connection box should have a few inches of clearance. The terminal blocks
+made for AC power are bigger than needed but can be gotten at any Home Depot.
+Insertion-type terminal blocks would be easier to work with.
+
+There should be a 4-wire cable with red, black, yellow and green wires (usually
+18-gauge solid copper) running from the connection box to the front panel. We'll
+use this for a TTL-level serial connection (using the level shifter board) between
+the core monitor and the front panel. All four wires are needed (5VDC, ground, TX, RX).
+There will be some voltage drop due to the wire length but it should be minimal, and
+the level shifter handles the difference between the HV (Arduino) side and LV (Raspberry
+Pi) side.
+
+The sensor connections should be normally-closed. Use a digital multimeter to check.
+You should see around 1.8 to 2.2 ohms resistance when closed (door closed, window closed).
+When a door is opened, the circuit opens. If there is voltage on any of these, this
+approach won't work and trying to connect may damage the Arduino.
+
+Motion detectors may have a 3-wire or 4-wire connection. Two of the wires (usually red
+and black) will supply 12V DC power and ground to the motion sensor. The other two wires
+(or other one in relation to ground) are the normally-closed connection when no motion
+is detected. When the passive infrared sensor detects motion and lights up, the normally
+closed connection opens like the other sensors.
+
+The front panel is going to need USB power for the USB speakers and for the Raspberry Pi.
+An electric power receptacle with two USB charging ports can be installed. Make sure you
+get someone to do this who knows how to follow local electric code, like an electrician.
+Get this done first, since you'll want to cover this with the frame holding the Raspberry
+Pi with touchscreen.
+
+More details to follow...
+
