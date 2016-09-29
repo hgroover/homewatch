@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Home Monitor
+Comment=Smart Home Monitor
+Icon=/usr/share/pixmaps/openbox.xpm
+Exec=/home/pi/pimonitor/pimonitor
+Type=Application
+Encoding=UTF-8
+Terminal=false
+Categories=None;
