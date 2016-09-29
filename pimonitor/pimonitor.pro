@@ -28,11 +28,13 @@ SOURCES += main.cpp\
         mainwindow.cpp \
     fault.cpp \
     pulsesimple.cpp \
-    generator.cpp
+    generator.cpp \
+    soundoutput.cpp
 
 HEADERS  += mainwindow.h \
     fault.h \
     pulsesimple.h \
-    generator.h
+    generator.h \
+    soundoutput.h
 
 FORMS    += mainwindow.ui
