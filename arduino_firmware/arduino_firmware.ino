@@ -12,7 +12,7 @@
 // at 19200 bps 8-N-1
 // Computer is connected to Hardware UART
 // GPRS Shield is connected to the Software 
-// Using digital 6, 5, 4, 3, 2, 12
+// Using digital 6, 5, 4, 3, 2, 10, 11, 12
 // Using i2c expander at 0x38 (default address)
 // d6: front door
 // d5: back door
@@ -38,7 +38,7 @@
 // Unsolicited +CMTI: "SM",2
 // may apppear when we have a text.
 // Use AT+CMGL to list, or AT+CMGR=<n> to retrieve:
-//+CMGR: "REC READ","+17607073183","","16/09/10,06:49:53-20"
+//+CMGR: "REC READ","+17605551212","","16/09/10,06:49:53-20"
 //Disregard
 // AT+CMGD=<n> to delete. This particular device seems to
 // be unable to list after an earlier message has been deleted
@@ -58,19 +58,10 @@ unsigned char buffer[65]; // buffer array for data recieve over serial port
 int count=0;     // counter for buffer array
 byte val=0;
 byte caret=0;
-String notify = "+17607073183";
+String notify = "+17605551212";
 byte powerState = 1; // Assume on
 //byte expData = 0;
 //byte lastExp = 0;
-/*
-int garageDoorPin = 2;
-int garageDoor = 0;
-int loftDoorPin = 3;
-int motionPin = 4;
-int backDoorPin = 5;
-int frontDoorPin = 6;
-int powerPin = 12;
-*/
 // Sensor note: total 14 inputs
 // Mounting note: 3.25" spacing
 // Pin identifiers for digital pins monitored for faults
@@ -83,12 +74,6 @@ int digPins[8] = { 2, 3, 4, 5, 6, 10, 11, 12 };
 int GPRS_powerPin = 9;
 int ledPin = 13;
 unsigned long fault = 0;
-String faultMap[32] = { 
-  "GarD", "LftD", "Mot1", "BckD",   "FrtD", "Wn01", "Wn02", "Pwr",
-  "Wn03", "Wn04", "Wn05", "Wn06",   "Wn07", "Wn08", "Wn09", "Wn10",
-  "Wn11", "Wn12", "Wn13", "Wn14",   "", "", "", "",
-  "", "", "", "",   "", "", "", ""
-};
 // xor'ed with fault - 0 for test mode, mask of all
 // connected inputs for live mode
 unsigned long connectedMask = 0x3f1f;
@@ -181,12 +166,7 @@ void handleFault()
     //else digitalWrite(ledPin, 0);
     lastFault = fault;
     lastFaultTime = curTime;
-    /***
-    // Bogus command will echo to Pi
-    GPRS.print("AT+CLBP=");
-    GPRS.print(fault);
-    GPRS.print("\r");
-    ***/
+
     Serial.print("F ");
     Serial.print(fault);
     Serial.print(" t ");
@@ -483,52 +463,6 @@ boolean handleSerialInput()
           setBlink();
         }
       }
-      /**********
-      else if (val == '0')
-      {
-        powerDown();
-        Serial.println("Powering off");
-        caret = 0;
-        return FALSE;
-      }
-      else if (val == '1')
-      {
-        Serial.println("Powering up");
-        powerUp();
-        caret = 0;
-        return FALSE;
-      }
-      else if (val == '2')
-      {
-        Serial.println("Sending text");
-        if (powerState == 0)
-        {
-          Serial.println( "Powering up");
-          powerUp();
-          delay(10000);
-        }
-        //GPRS.print("AT+CMGF=1\r"); // SMS text only
-        //delay(500);
-        GPRS.print("AT + CMGS = \"" + notify + "\"\r" );
-        delay(500);
-        GPRS.print("Input test: iox=");
-        GPRS.print(expData);
-        GPRS.print("; gd=");
-        GPRS.print(garageDoor);
-        GPRS.print("; fault=");
-        GPRS.print(fault);
-        GPRS.write((char)26);
-        if (powerState == 0)
-        {
-          delay(2000);
-          powerDown();
-          Serial.println("Text sent, powered off");
-        }
-        else
-        {
-          Serial.println("Text sent");
-        }
-        *********/
       caret = 0;
       return false;
     }
