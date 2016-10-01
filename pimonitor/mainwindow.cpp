@@ -22,28 +22,41 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->setupUi(this);
 
     // Initialize fault map (FIXME do this from persistent data)
-    m_faultMap[0x01] = Fault("Gar.Dr", 0x01);
-    m_faultMap[0x02] = Fault("LoftDr", 0x02);
-    m_faultMap[0x04] = Fault("Motion", 0x04, false);
-    m_faultMap[0x08] = Fault("BackDr", 0x08);
-    m_faultMap[0x10] = Fault("FrontDr", 0x10);
+    QCheckBox *chk;
+#define SetFaultMap(mask,abbr,full) \
+        m_faultMap[mask] = Fault(abbr, mask); \
+        chk = new QCheckBox(full, ui->centralWidget); \
+        ui->vlCheckboxes->addWidget(chk); \
+        m_faultMap[mask].m_chk = chk
+
+    SetFaultMap(0x01, "Gar.dr", "Garage dr");
+    SetFaultMap(0x02, "LoftDr", "Loft dr");
+    SetFaultMap(0x04, "Motion", "Motion det");
+    m_faultMap[0x04].m_perimeter = false;
+    SetFaultMap(0x08, "BackDr", "Back dr");
+    SetFaultMap(0x10, "FrontDr", "Front dr");
     m_faultMap[0x20] = Fault("unk20", 0x20, false);
     m_faultMap[0x40] = Fault("unk40", 0x40, false);
     m_faultMap[0x80] = Fault("Power", 0x80, false);
 
     // Pins on I2c: pin 0 is msb
-    m_faultMap[0x100] = Fault("Brkfst", 0x100 );
-    m_faultMap[0x200] = Fault("Ofc", 0x200 );
-    m_faultMap[0x400] = Fault("BR4", 0x400 );
-    m_faultMap[0x800] = Fault("Study/Din", 0x800 );
-    m_faultMap[0x1000] = Fault("Fam 2,3", 0x1000 );
-    m_faultMap[0x2000] = Fault("Fam 1", 0x2000 );
+    SetFaultMap(0x100, "Brkfst", "Breakfast" );
+    SetFaultMap(0x200, "Ofc", "Office" );
+    SetFaultMap(0x400, "BR4", "BR 4" );
+    SetFaultMap(0x800, "Study/Din", "Study" );
+    SetFaultMap(0x1000, "Fam 2,3", "Family rm 2,3" );
+    SetFaultMap(0x2000, "Fam 1", "Family rm 1" );
     m_faultMap[0x4000] = Fault("i2c1", 0x4000 );
     m_faultMap[0x8000] = Fault("i2c0", 0x8000 );
 
     m_watchMode = -1;
     m_faultMask = 0;
     m_previousFault = 0;
+    m_previousRawFault = 0;
+
+    m_rawLog.setFileName("monitor-raw.log");
+    m_rawLog.open(QIODevice::Append);
+    m_rawLog.write(QString("\r\nStarted ").append(QDateTime::currentDateTime().toString()).append("\r\n").toLocal8Bit());
 
 #if (TESTMODE==0)
     // Set up serial communication
@@ -85,7 +98,7 @@ MainWindow::MainWindow(QWidget *parent) :
     m_log.setFileName("monitor.log");
     m_log.open(QIODevice::Append);
 
-    connect( this, SIGNAL(playSound(QString)), &m_snd, SLOT(play(QString)) );
+    connect( this, SIGNAL(playSound(QString)), &m_snd, SLOT(play(QString)), Qt::QueuedConnection );
 
     m_snd.start();
 
@@ -110,8 +123,8 @@ void MainWindow::handleReadyRead()
 {
 #if (TESTMODE == 0)
     QByteArray data(m_serial.readAll());
-    // Do this if we have a raw log
-    //m_rawLog.write(data);
+    m_rawLog.write(data);
+    m_rawLog.flush();
     QString chunk(m_partialLine);
     m_partialLine.clear();
     chunk += data;
@@ -163,7 +176,7 @@ void MainWindow::handleChunk(QString s)
         if (reFault.exactMatch(sLine))
         {
             gotFault = true;
-            lastFault = reFault.cap(1).toUInt() & ~m_faultMask;
+            lastFault = reFault.cap(1).toUInt();
         }
         else if (sLine == "PERIM")
         {
@@ -181,37 +194,55 @@ void MainWindow::handleChunk(QString s)
             logLine( sPrefix + sLine );
         }
     }
-    if (gotFault && lastFault != m_previousFault)
+    if (gotFault && lastFault != m_previousRawFault)
     {
-        logLine( sPrefix + updateFault(lastFault) );
-        m_previousFault = lastFault;
+        QString faultMsg(updateFault(lastFault));
+        if (m_watchMode >= 1 && !faultMsg.isEmpty() && lastFault != m_previousFault)
+        {
+            logLine( sPrefix + faultMsg );
+            emit playSound("beep1s");
+        }
+        m_previousRawFault = lastFault;
+        m_previousFault = lastFault & m_faultMask;
     }
+    m_log.flush();
 }
 
 QString MainWindow::updateFault( unsigned int faultMap )
 {
-    QString s("clear");
-    // Clear indicators
-    if (0 == faultMap)
-    {
-        return s;
-    }
-    s = "FAULT:";
+    QString s;
+    // Set indicators that have changed
     int n;
+    unsigned int filteredFault = (faultMap & m_faultMask);
     unsigned int mask = 0x01;
-    // FIXME set indicators
-    // FIXME if monitoring perimeter, ignore motion
     for (n = 0; n < 32; n++, mask <<= 1)
     {
-        if (0 == (faultMap & mask)) continue;
+        if (!m_faultMap.contains(mask)) continue;
+        if (((mask & m_previousRawFault) ^ (mask & faultMap)) != 0 && m_faultMap[mask].m_chk)
+        {
+            m_faultMap[mask].m_chk->setChecked((mask & faultMap) != 0);
+        }
+    }
+    // If nothing to log/beep, we're done
+    if (filteredFault == 0)
+    {
+        if (m_previousFault) return "clear";
+        return s;
+    }
+    // If monitoring perimeter, ignore motion
+    mask = 0x01;
+    for (n = 0; n < 32; n++, mask <<= 1)
+    {
         if (m_faultMap.contains(mask))
         {
+            // Is this fault triggered?
+            if (0 == (filteredFault & mask)) continue;
             s += ' ';
             s += m_faultMap[mask].m_name;
         }
     }
-    emit playSound("beep1s");
-    return s;
+    if (s.isEmpty()) return s;
+    return s.prepend("FAULT:");
 }
 
 void MainWindow::logLine(QString s)
@@ -308,7 +339,9 @@ void MainWindow::on_btnPerimeter_clicked()
     ui->btnDisarm->setEnabled(true);
     ui->btnPerimeter->setEnabled(false);
     rebuildFaultMask();
+#if (TESTMODE == 0)
     m_serial.write("^1");
+#endif
 }
 
 void MainWindow::on_btnDisarm_clicked()
@@ -323,9 +356,12 @@ void MainWindow::on_btnDisarm_clicked()
     m_faultMask = 0;
     ui->btnDisarm->setEnabled(false);
     ui->btnPerimeter->setEnabled(true);
+#if (TESTMODE == 0)
     m_serial.write("^0");
+#endif
 }
 
+// Build bitmask with bits set for each perimeter fault
 void MainWindow::rebuildFaultMask()
 {
     m_faultMask = 0;
@@ -334,7 +370,7 @@ void MainWindow::rebuildFaultMask()
     for (n = 0; n < 32; n++, mask <<= 1)
     {
         if (!m_faultMap.contains(mask)) continue;
-        if (m_faultMap[mask].m_perimeter) continue;
+        if (!m_faultMap[mask].m_perimeter) continue;
         m_faultMask |= mask;
     }
 }

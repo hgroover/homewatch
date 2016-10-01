@@ -1,0 +1,16 @@
+Feature checklist for pimonitor
+
+* Modem features (set dial entries for notification, read
+  and clear SMS, etc)
+* Configure sounds
+* Configure faults
+* Configure notification actions
+* Configure arm/disarm PIN
+* Fault map setup and display
+* Cloud interface
+  * Build back end
+  * Build management for back end
+  * Build subscription for back end
+* Perimeter watch notification mode
+* Silent alarm options
+* Log review

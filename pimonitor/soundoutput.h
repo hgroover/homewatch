@@ -2,6 +2,8 @@
 #define SOUNDOUTPUT_H
 
 #include <QString>
+#include <QMutex>
+#include <QMutexLocker>
 #include <QThread>
 #include <QMap>
 
@@ -18,7 +20,7 @@ public:
 private:
     QAudioFormat m_format;
     QMap<QString,Generator*> m_sounds;
-
+    QMutex m_lock;
     PulseSimple m_pulse;
 
 signals:

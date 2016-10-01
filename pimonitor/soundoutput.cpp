@@ -50,12 +50,13 @@ SoundOutput::~SoundOutput()
 void SoundOutput::play(QString sampleName)
 {
     qint64 bytesRead;
-    static unsigned char buf[0x8000];
+    static unsigned char buf[0x4000];
     if (!m_sounds.contains(sampleName)) return;
+    //if (!m_lock.tryLock(5)) return;
     m_sounds[sampleName]->rewind();
     if ((bytesRead = m_sounds[sampleName]->readData((char *)buf, sizeof(buf))) >= 256)
     {
-        emit msg(QString().sprintf("Got %lld bytes of sound data", bytesRead ));
+        //emit msg(QString().sprintf("Got %lld bytes of sound data", bytesRead ));
         m_pulse.write(buf, bytesRead);
         m_pulse.flush();
     }
@@ -63,6 +64,7 @@ void SoundOutput::play(QString sampleName)
     {
         emit msg("Failed to get sound data from generator");
     }
+    //m_lock.unlock();
 }
 
 void SoundOutput::stop()

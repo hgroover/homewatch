@@ -38,3 +38,6 @@ HEADERS  += mainwindow.h \
     soundoutput.h
 
 FORMS    += mainwindow.ui
+
+OTHER_FILES += \
+    feature-checklist.txt

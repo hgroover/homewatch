@@ -2,6 +2,7 @@
 #define FAULT_H
 
 #include <QString>
+#include <QCheckBox>
 
 // Describe a fault
 class Fault
@@ -14,6 +15,7 @@ public:
     QString m_name;
     unsigned int m_mask;
     bool m_perimeter;
+    QCheckBox *m_chk;
 };
 
 #endif // FAULT_H
