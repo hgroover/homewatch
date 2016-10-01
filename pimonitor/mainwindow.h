@@ -15,6 +15,7 @@
 #include "soundoutput.h"
 
 #define TESTMODE    0
+#define MONITOR_VER "1.0.002"
 
 namespace Ui {
 class MainWindow;
@@ -55,6 +56,9 @@ private:
     SoundOutput m_snd;
     QMap<unsigned int,Fault> m_faultMap;
 
+    bool m_dpmsOn;
+    QTimer m_dpmsTimer;
+
     void resetUILog();
 private slots:
     void handleReadyRead();
@@ -73,6 +77,15 @@ private slots:
 
     // Reconstruct m_faultMask as a bitmask of all faults which are perimeter faults
     void rebuildFaultMask();
+
+    // Force monitor off or on via DPMS
+    void forceDpms(bool onOff);
+
+    // Blank elapsed
+    void screenDelayElapsed() { forceDpms(false); }
+
+    // Force repaint after resuming screen
+    void forceRepaint() { repaint(); }
 };
 
 #endif // MAINWINDOW_H

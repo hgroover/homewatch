@@ -15,11 +15,18 @@ MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
     ui(new Ui::MainWindow)
   ,   m_snd(this)
+  ,   m_dpmsTimer()
   #if (TESTMODE == 0)
   ,   m_serial()
   #endif
 {
     ui->setupUi(this);
+
+    m_dpmsOn = true;
+    m_dpmsTimer.setSingleShot(true);
+    m_dpmsTimer.setInterval(3 * 60000);
+    connect( &m_dpmsTimer, SIGNAL(timeout()), this, SLOT(screenDelayElapsed()) );
+    m_dpmsTimer.start();
 
     // Initialize fault map (FIXME do this from persistent data)
     QCheckBox *chk;
@@ -102,6 +109,7 @@ MainWindow::MainWindow(QWidget *parent) :
 
     m_snd.start();
 
+    logLine("PiMonitor v" MONITOR_VER);
     showMaximized();
 }
 
@@ -253,6 +261,8 @@ void MainWindow::logLine(QString s)
         resetUILog();
     }
     ui->txtLog->appendPlainText(s);
+    if (!m_dpmsOn) forceDpms(true);
+    else m_dpmsTimer.start();
 }
 
 void MainWindow::resetUILog()
@@ -372,5 +382,23 @@ void MainWindow::rebuildFaultMask()
         if (!m_faultMap.contains(mask)) continue;
         if (!m_faultMap[mask].m_perimeter) continue;
         m_faultMask |= mask;
+    }
+}
+
+// Force monitor off or on via DPMS
+void MainWindow::forceDpms(bool onOff)
+{
+    QString sCmd("xset dpms force ");
+    sCmd.append(onOff ? "on" : "off");
+    system(sCmd.toLocal8Bit().constData());
+    m_dpmsOn = onOff;
+    if (onOff)
+    {
+        m_dpmsTimer.start();
+        QTimer::singleShot(1000, this, SLOT(forceRepaint()));
+    }
+    else
+    {
+        m_dpmsTimer.stop();
     }
 }

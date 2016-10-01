@@ -14,3 +14,8 @@ Feature checklist for pimonitor
 * Perimeter watch notification mode
 * Silent alarm options
 * Log review
+
+Completed:
+* 1.0.002: Add screen saver (requires sudo apt-get install x11-xserver-utils)
+
+Verified:
