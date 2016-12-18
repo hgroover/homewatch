@@ -1,0 +1,34 @@
+Setting up Raspbian "jessie" OS
+
+This document covers how to set up the Linux operating system, specifically
+the Raspbian distro. You'll run the home monitor as an application. The instructions
+here apply to a recent version codenamed "jessie."
+
+You can google search raspbian jessie to find a page where you can download
+a zip file. You'll need to install Win32DiskImager (on Windows) so that you
+can write the .img file to a microSD card (earlier versions of Raspberry Pi
+used regular SD cards).
+
+Actual writing of the image is relatively simple. Run Disk Imager as administrator,
+insert the SD card or USB adapter with the card, select the drive letter assigned
+(make sure you don't choose other removable media - all data on it will be wiped!)
+and select the jessie img file, then write image.
+
+First boot
+Before connecting the other hardware, you'll need to make a couple of changes.
+Insert the microSD in the Raspberry Pi 3 with the touchscreen connected. You'll
+need to connect a USB keyboard for this stage (it won't be needed later, and you
+can also use a Bluetooth keyboard).
+
+Essential checklist
+Connect to wifi
+Change password 
+Select timezone
+
+Open a shell session.
+sudo apt-get install 
+
+We need to turn off logins on the serial port, which we'll be using to
+communicate with the Arduino board. Partly following this http://www.instructables.com/id/Read-and-write-from-serial-port-with-Raspberry-Pi/
+sudo raspi-config
+
