@@ -1,5 +1,9 @@
 Feature checklist for pimonitor
 
+Bugs:
+* Pulse Simple API has delays and some odd behavior
+
+Backlog:
 * Modem features (set dial entries for notification, read
   and clear SMS, etc)
 * Configure sounds

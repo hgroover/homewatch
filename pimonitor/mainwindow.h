@@ -15,7 +15,7 @@
 #include "soundoutput.h"
 
 #define TESTMODE    0
-#define MONITOR_VER "1.0.002"
+#define MONITOR_VER "1.0.004"
 
 namespace Ui {
 class MainWindow;
@@ -70,7 +70,6 @@ private slots:
     void logLine( QString s );
     QString updateFault( unsigned int faultMap );
 
-    void on_btnStartStop_clicked();
     void on_btnArm_clicked();
     void on_btnPerimeter_clicked();
     void on_btnDisarm_clicked();

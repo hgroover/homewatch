@@ -28,6 +28,12 @@
 // i2c-5: BR4
 // i2c-6: Ofc
 // i2c-7: Breakfast
+// Analog A5-A6 are used for external I2C (i2c-0 through i2c-7)
+// Analog A0 is used for monitor the 18VAC line power using optional circuit:
+// (a basic full-bridge rectifier with minimal buffering and a voltage
+// divider down to 0-4.8VDC
+// See arduino_addon_hardware/ac-monitor/18vac-monitor.pdf
+// Connect VOUT to A0 and ground to GND
 
 // USMobile data connection parameters:
 // APN: pwg
@@ -59,7 +65,12 @@ int count=0;     // counter for buffer array
 byte val=0;
 byte caret=0;
 String notify = "+17605551212";
+// 0 = no capture
+// 1 = capture in progress
+// 2 = capture complete
+int gotNotify = 0;
 byte powerState = 1; // Assume on
+int lastPowerMonitorCount = 0;
 //byte expData = 0;
 //byte lastExp = 0;
 // Sensor note: total 14 inputs
@@ -75,17 +86,22 @@ int GPRS_powerPin = 9;
 int ledPin = 13;
 unsigned long fault = 0;
 // xor'ed with fault - 0 for test mode, mask of all
-// connected inputs for live mode
-unsigned long connectedMask = 0x3f1f;
+// connected inputs for live mode. Bit 16 (0x10000)
+// corresponds to a power fault.
+unsigned long connectedMask = 0x13f1f;
 unsigned long lastFault = 0;
 unsigned long lastFaultTime = 0;
+unsigned long lastCurTime = 0;
 unsigned long curTime;
+unsigned long curTimeSeconds = 0;
 unsigned long elapsedSinceLastFault;
 int initState = 0;
 int bytesReceived = 0;
 String modemInit[5] = {"AT\r","ATE0Q0\r", "AT+CMGF=1\r", "AT+CPBS=\"SM\"\r", "AT+CPBR=1\r"};
 int modemInitLen = 5;
 int armedState = 0; // 0 = unarmed; 1 = perimeter watch; 2 = armed (away); 3 = alarm
+unsigned long singleShotWait = 84600; // Single shot mode in seconds
+unsigned long lastAlarmEvent = 0;
 int saveArmedState = 0; // Save to SMS
 unsigned long waitTarget = 0;
 int modemBytesReceived = 0;
@@ -103,6 +119,9 @@ int blinkActionLen = 6;
 int blinkIndex = 0;
 unsigned long blinkIndexStart;
 
+// Set power monitor pin to -1 if unused
+int powerMonitorPin = 0;
+
 void setup()
 {
   Wire.begin();
@@ -115,12 +134,23 @@ void setup()
   Serial.begin(19200);             // the Serial port of Arduino baud rate.
   //powerUp();
   waitTarget = millis() + 1000;
+  Serial.print("HomeWatch 0.1.2\r\n");
 }
 
 void loop()
 {
   handleSensors();
   curTime = millis();
+  if (curTimeSeconds == 0)
+  {
+    curTimeSeconds = curTime / 1000;
+  }
+  else if (curTime >= lastCurTime + 1000)
+  {
+    curTimeSeconds += (curTime - lastCurTime) / 1000;
+    lastCurTime = curTime;
+  }
+  
   handleBlink();
   handleFault();
   
@@ -180,12 +210,40 @@ void handleFault()
         Serial.print("PERIM\r\n");
         break;
       case 2:
-        Serial.print("ALARM\r\n");
-        GPRS.print("AT + CMGS = \"" + notify + "\"\r" );
-        delay(500);
-        GPRS.print("ALARM ");
-        GPRS.print(fault);
-        GPRS.write((char)26);
+        {
+          unsigned long elapsedSinceLastAlarm = 0;
+          int sendAlarm = 1;
+          if (singleShotWait != 0)
+          {
+            if (lastAlarmEvent < curTimeSeconds)
+            {
+              elapsedSinceLastAlarm = curTimeSeconds - lastAlarmEvent;
+            }
+            if (elapsedSinceLastAlarm < singleShotWait && lastAlarmEvent != 0)
+            {
+              sendAlarm = 0;
+            }
+          }
+          // Always signal pimonitor
+          Serial.print("ALARM\r\n");
+          if (sendAlarm)
+          {
+            if (gotNotify >= 2)
+            {
+              GPRS.print("AT + CMGS = \"" + notify + "\"\r" );
+              delay(500);
+              GPRS.print("ALARM ");
+              GPRS.print(fault);
+              GPRS.write((char)26);
+              Serial.print("Notification sent " + notify + "\r\n");
+            }
+            else
+            {
+              Serial.print("No notification number set\r\n");
+            }
+            lastAlarmEvent = curTimeSeconds;
+          }
+        }
         break;
     }
   }
@@ -222,6 +280,24 @@ void handleSensors()
   for (n = 0; n < 8; n++, setBit <<= 1)
   {
     if (digitalRead(digPins[n]) == 0) fault |= setBit;
+  }
+  // Check power
+  if (powerMonitorPin >= 0)
+  {
+    int powerCount = analogRead( powerMonitorPin );
+    //if (powerCount < lastPowerMonitorCount - 2 || powerCount > lastPowerMonitorCount + 2)
+    //{
+    //  Serial.print("PMC: ");
+    //  Serial.print(powerCount);
+    //  Serial.print("\r\n");
+    //}
+    //lastPowerMonitorCount = powerCount;
+    // FIXME make threshold configurable. 900 is about (5.0 * 900 / 1024)V or 4.39V 
+    if (powerCount >= 900)
+    {
+      // Power level OK is "closed"
+      fault |= (0x10000 & connectedMask);
+    }
   }
   // If test mode, closures are pseudo-triggers,
   // otherwise open is a fault
@@ -298,7 +374,7 @@ void setBlink()
 boolean handleModemResponse()
 {
   bytesReceived = 0;
-  if (GPRS.available())              // if date is comming from softwareserial port ==> data is comming from gprs shield
+  if (GPRS.available())              // if date is coming from softwareserial port ==> data is comming from gprs shield
   {
     while(GPRS.available())          // reading data into char array
     {
@@ -318,6 +394,21 @@ boolean handleModemResponse()
       Serial.print("Found entry 1 state ");
       Serial.print(armedState); 
       setBlink();
+      // Request notification number
+      GPRS.print("AT+CPBR=2\r");
+    }
+    else
+    {
+      i = s.indexOf("+CPBR: 2,"");
+      if (i >= 0)
+      {
+        gotNotify = 2;
+        notify = "";
+        for (i += 10; s[i] != '\"' && s[i] != '\r' && s[i] != '\n'; i++)
+        {
+          notify += s[i];
+        }
+      }
     }
     clearBufferArray();              // call clearBufferArray function to clear the storaged data from the array
     count = 0;                       // set counter of while loop to zero
@@ -438,7 +529,13 @@ boolean handleSerialInput()
           break;
         case '2': // arm
           if (armedState == 2)
-            Serial.print("Already armed\r\n");
+          {
+            Serial.print("Already armed, ss=");
+            Serial.print(lastAlarmEvent);
+            Serial.print("\r\n");
+            // Reset singleshot
+            lastAlarmEvent = 0;
+          }
           else if (lastFault != 0)
           {
             Serial.print("ERROR: cannot arm, fault ");
@@ -451,6 +548,10 @@ boolean handleSerialInput()
             armedState = 2;
             saveArmedState = 1;
           }
+          break;
+        case 'n': // Set notification
+          gotNotify = 2;
+          notify = "";
           break;
         default:
           break;

@@ -56,6 +56,9 @@ MainWindow::MainWindow(QWidget *parent) :
     m_faultMap[0x4000] = Fault("i2c1", 0x4000 );
     m_faultMap[0x8000] = Fault("i2c0", 0x8000 );
 
+    // Virtuals
+    SetFaultMap(0x10000, "Power", "Line power" );
+
     m_watchMode = -1;
     m_faultMask = 0;
     m_previousFault = 0;
@@ -119,6 +122,7 @@ MainWindow::~MainWindow()
     delete ui;
 }
 
+/***
 void MainWindow::on_btnStartStop_clicked()
 {
     QString whichSound("beep1s");
@@ -126,6 +130,7 @@ void MainWindow::on_btnStartStop_clicked()
     if (oddEven++ % 2) whichSound="peep250ms";
     emit playSound(whichSound);
 }
+***/
 
 void MainWindow::handleReadyRead()
 {
@@ -205,8 +210,12 @@ void MainWindow::handleChunk(QString s)
     if (gotFault && lastFault != m_previousRawFault)
     {
         QString faultMsg(updateFault(lastFault));
-        if (m_watchMode >= 1 && !faultMsg.isEmpty() && lastFault != m_previousFault)
+        if (m_watchMode >= 1 && !faultMsg.isEmpty() && (lastFault & m_faultMask) != m_previousFault)
         {
+            if (ui->chkDebug->isChecked())
+            {
+                faultMsg += QString().sprintf(" %x %x %X", m_previousFault, m_previousRawFault, lastFault);
+            }
             logLine( sPrefix + faultMsg );
             emit playSound("beep1s");
         }
@@ -339,7 +348,13 @@ void MainWindow::handleError(QSerialPort::SerialPortError error)
 
 void MainWindow::on_btnArm_clicked()
 {
-
+    m_watchMode = 2;
+    ui->btnDisarm->setEnabled(true);
+    ui->btnPerimeter->setEnabled(true);
+    rebuildFaultMask();
+#if (TESTMODE == 0)
+    m_serial.write("^2");
+#endif
 }
 
 void MainWindow::on_btnPerimeter_clicked()
@@ -364,6 +379,7 @@ void MainWindow::on_btnDisarm_clicked()
     // Turn off
     m_watchMode = 0;
     m_faultMask = 0;
+    ui->btnArm->setEnabled(true);
     ui->btnDisarm->setEnabled(false);
     ui->btnPerimeter->setEnabled(true);
 #if (TESTMODE == 0)
